@@ -19,8 +19,8 @@ namespace AiFriends.Network
             if (networkPrefab != null)
                 return;
 
-            networkPrefab = LethalLib.Modules.NetworkPrefabs.CreateNetworkPrefab("ReviveStore");
-            AICompanion reviveStore = networkPrefab.AddComponent<AICompanion>();
+            networkPrefab = LethalLib.Modules.NetworkPrefabs.CreateNetworkPrefab("aiHelper");
+            AICompanion aiHelper = networkPrefab.AddComponent<AICompanion>();
             UpgradeBus upgradeBus = networkPrefab.AddComponent<UpgradeBus>();
         }
 

@@ -6,6 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="..\.editorconfig" Link=".editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="0Harmony">
       <HintPath>..\..\..\..\AppData\Roaming\Thunderstore Mod Manager\DataFolder\LethalCompany\profiles\Default\BepInEx\core\0Harmony.dll</HintPath>
     </Reference>
@@ -65,8 +69,8 @@
     </Reference>
   </ItemGroup>
   <Target Name="NetcodePatch" AfterTargets="PostBuildEvent">
-	  <Exec Command="netcode-patch -nv 1.5.2 &quot;$(TargetPath)&quot; @(ReferencePathWithRefAssemblies->'&quot;%(Identity)&quot;', ' ')" />
-	  <Copy SourceFiles="$(TargetPath)" DestinationFolder="C:/Users/BrantleysPC/source/repos/AiFriends/AiFriends/bin/Debug/netstandard2.1" />
+	<Exec Command="netcode-patch -nv 1.5.2 &quot;$(TargetPath)&quot; @(ReferencePathWithRefAssemblies->'&quot;%(Identity)&quot;', ' ')" />
+	<Copy SourceFiles="$(TargetPath)" DestinationFolder="C:/Users/BrantleysPC/source/repos/AiFriends/AiFriends/bin/Debug/netstandard2.1" />
   </Target>
 
 </Project>

@@ -8,9 +8,9 @@ namespace AiFriends.Helpers
     {
         public enum AiLevel
         {
-            Easy,
-            Medium,
-            Hard
+            easy,
+            medium,
+            hard
         }
     }
 }

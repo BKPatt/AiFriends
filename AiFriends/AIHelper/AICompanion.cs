@@ -1,56 +1,91 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using UnityEngine;
 using GameNetcodeStuff;
 using Unity.Netcode;
 using AiFriends.Helpers;
 using UnityEngine.AI;
 using System.Linq;
+using AiFriends.Patches;
 
 namespace AiFriends.AIHelper
 {
-    public class AICompanion : PlayerControllerB
+    public class AICompanion : NetworkBehaviour
     {
         public static AICompanion Instance { get; private set; }
 
-        public PlayerControllerB ownerPlayer;
+        private PlayerControllerB playerControllerB;
         public float followDistance = 5f;
         public float lootGatherRadius = 10f;
         public int inventoryCapacity = 10;
-        public AILevel.AiLevel aiLevel = AILevel.AiLevel.Medium;
+        public AILevel.AiLevel aiLevel = AILevel.AiLevel.medium;
         private const int HelperCost = 100;
 
-        private bool isExploring = true;
-        private bool isReturningToShip = false;
+        private bool isClimbingLadder = false;
+        private bool isClimbingUp = true;
+        private InteractTrigger currentLadder;
         private GrabbableObject[] nearbyLoot;
-        private Vector3 shipPosition;
 
         private NavMeshAgent navMeshAgent;
-        private bool isMoving;
 
         private void Start()
         {
-            shipPosition = RoundManager.FindMainEntrancePosition();
             navMeshAgent = GetComponent<NavMeshAgent>();
+        }
+
+        private void Awake()
+        {
+            playerControllerB = GetComponent<PlayerControllerB>();
+            if (playerControllerB == null)
+            {
+                playerControllerB = gameObject.AddComponent<PlayerControllerB>();
+            }
         }
 
         private void Update()
         {
-            if (isPlayerDead)
+            if (playerControllerB.isPlayerDead)
                 return;
 
-            if (isExploring)
+            if (isClimbingLadder)
             {
-                Explore();
-            }
-            else if (isReturningToShip)
-            {
-                ReturnToShip();
+                ClimbLadder();
             }
             else
             {
-                ExploreAndGatherLoot();
+                Explore();
+            }
+
+            CheckDoorInteraction();
+        }
+
+        private void ClimbLadder()
+        {
+            if (currentLadder == null)
+            {
+                isClimbingLadder = false;
+                return;
+            }
+
+            Vector3 ladderTop = currentLadder.transform.position + Vector3.up * 5f;
+            Vector3 ladderBottom = currentLadder.transform.position - Vector3.up * 5f;
+
+            if (isClimbingUp)
+            {
+                SetDestinationToPosition(ladderTop);
+                if (Vector3.Distance(transform.position, ladderTop) < 1f)
+                {
+                    isClimbingLadder = false;
+                    currentLadder = null;
+                }
+            }
+            else
+            {
+                SetDestinationToPosition(ladderBottom);
+                if (Vector3.Distance(transform.position, ladderBottom) < 1f)
+                {
+                    isClimbingLadder = false;
+                    currentLadder = null;
+                }
             }
         }
 
@@ -59,16 +94,6 @@ namespace AiFriends.AIHelper
             if (navMeshAgent != null && navMeshAgent.isOnNavMesh)
             {
                 navMeshAgent.SetDestination(targetPosition);
-                isMoving = true;
-            }
-        }
-
-        private void StopMoving()
-        {
-            if (navMeshAgent != null && navMeshAgent.isOnNavMesh)
-            {
-                navMeshAgent.ResetPath();
-                isMoving = false;
             }
         }
 
@@ -99,52 +124,146 @@ namespace AiFriends.AIHelper
         }
 
         [ClientRpc]
-        private void SpawnHelperClientRpc(PlayerControllerB player, String AILevel)
+        public void SpawnHelperClientRpc(Vector3 spawnPosition, string AILevel)
         {
-            if (!CanAffordHelper())
+            if (!IsServer)
             {
-                Debug.Log("Not enough credits to spawn AI companion.");
-                return;
+                Debug.Log("Spawning AI helper on client");
+
+                GameObject helperObject = Instantiate(StartOfRound.Instance.playerPrefab, spawnPosition, Quaternion.identity);
+                PlayerControllerB aiHelper = helperObject.GetComponent<PlayerControllerB>();
+
+                AILevel.AiLevel aiLevel = (AILevel.AiLevel)Enum.Parse(typeof(AILevel.AiLevel), AILevel);
+                PlayerControllerBPatch.SetAIHelperData(aiHelper, aiLevel);
+
+                aiHelper.playerUsername = "AI Helper";
+                aiHelper.isPlayerControlled = false;
+                aiHelper.DisablePlayerModel(aiHelper.gameObject, enable: true);
+
+                aiHelper.gameplayCamera.enabled = false;
+                aiHelper.thisPlayerModelArms.enabled = false;
+                aiHelper.visorCamera.enabled = false;
+                aiHelper.playerScreen.enabled = false;
+                aiHelper.activeAudioListener.enabled = false;
+                aiHelper.gameObject.GetComponent<CharacterController>().enabled = false;
             }
-
-            DeductCredits();
-
-            Vector3 spawnPosition = player.transform.position + player.transform.forward * 2f;
-            Quaternion spawnRotation = player.transform.rotation;
-
-            GameObject aiCompanionInstance = Instantiate(gameObject, spawnPosition, spawnRotation);
-            AICompanion aiCompanion = aiCompanionInstance.GetComponent<AICompanion>();
-
-            aiCompanion.ownerPlayer = player;
-            aiCompanion.aiLevel = aiLevel;
-
-            aiCompanionInstance.GetComponent<NetworkObject>().Spawn();
         }
 
         [ServerRpc(RequireOwnership = false)]
-        public void RequestSpawnHelperServerRpc(String AILevel)
+        public void RequestSpawnHelperServerRpc(string AILevel)
         {
-            PlayerControllerB player = new();
+            Debug.Log("Spawning AI helper on server");
+
+            if (!CanAffordHelper())
+            {
+                return;
+            }
             DeductCredits();
-            SpawnHelperClientRpc(player, AILevel);
+
+            Vector3 spawnPosition = GetPlayerSpawnPosition(0);
+
+            GameObject helperObject = Instantiate(StartOfRound.Instance.playerPrefab, spawnPosition, Quaternion.identity);
+            PlayerControllerB aiHelper = helperObject.GetComponent<PlayerControllerB>();
+
+            AILevel.AiLevel aiLevel = (AILevel.AiLevel)Enum.Parse(typeof(AILevel.AiLevel), AILevel);
+            PlayerControllerBPatch.SetAIHelperData(aiHelper, aiLevel);
+
+            aiHelper.playerUsername = "AI Helper";
+            aiHelper.isPlayerControlled = false;
+            aiHelper.DisablePlayerModel(aiHelper.gameObject, enable: true);
+
+            aiHelper.gameplayCamera.enabled = false;
+            aiHelper.thisPlayerModelArms.enabled = false;
+            aiHelper.visorCamera.enabled = false;
+            aiHelper.playerScreen.enabled = false;
+            aiHelper.activeAudioListener.enabled = false;
+            aiHelper.gameObject.GetComponent<CharacterController>().enabled = false;
+
+            helperObject.GetComponent<NetworkObject>().Spawn();
+
+            SpawnHelperClientRpc(spawnPosition, AILevel);
         }
 
         private void Explore()
         {
-            if (ownerPlayer == null)
-                return;
+            bool isPlayerOutside = IsPlayerOutside(playerControllerB);
+            Vector3 targetPosition = playerControllerB.serverPlayerPosition;
 
-            Vector3 targetPosition = ownerPlayer.transform.position;
-            float distance = Vector3.Distance(transform.position, targetPosition);
-
-            if (distance > followDistance)
+            if (!playerControllerB.isInsideFactory && FirstEmptyItemSlot() != -1)
             {
-                SetDestinationToPosition(targetPosition);
+                targetPosition = RoundManager.Instance.GetNavMeshPosition(RoundManager.FindMainEntrancePosition(true, isPlayerOutside), default, 5f, -1);
+
+                if (!NavMesh.CalculatePath(transform.position, targetPosition, NavMesh.AllAreas, new NavMeshPath()))
+                {
+                    InteractTrigger ladder = FindNearestLadder();
+                    if (ladder != null)
+                    {
+                        targetPosition = ladder.transform.position;
+                        currentLadder = ladder;
+                    }
+                }
+            }
+            else if (playerControllerB.isInsideFactory && FirstEmptyItemSlot() == -1)
+            {
+                targetPosition = RoundManager.Instance.GetNavMeshPosition(RoundManager.FindMainEntrancePosition(true, isPlayerOutside), default, 5f, -1);
+
+                if (!NavMesh.CalculatePath(transform.position, targetPosition, NavMesh.AllAreas, new NavMeshPath()))
+                {
+                    InteractTrigger ladder = FindNearestLadder();
+                    if (ladder != null)
+                    {
+                        targetPosition = ladder.transform.position;
+                        currentLadder = ladder;
+                    }
+                }
+            }
+            else if (playerControllerB.isInsideFactory && FirstEmptyItemSlot() != -1)
+            {
+                ExploreAndGatherLoot();
+            }
+            else if (!playerControllerB.isInsideFactory && FirstEmptyItemSlot() == -1)
+            {
+                ReturnToShip();
             }
             else
             {
-                StopMoving();
+                navMeshAgent.ResetPath();
             }
+
+            SetDestinationToPosition(targetPosition);
+
+            if (currentLadder != null && Vector3.Distance(transform.position, currentLadder.transform.position) < 2f)
+            {
+                isClimbingLadder = true;
+                isClimbingUp = !playerControllerB.isInsideFactory;
+                currentLadder.Interact(playerControllerB.thisPlayerBody);
+            }
+        }
+
+        private void CheckDoorInteraction()
+        {
+            Transform nearbyExitTransform = GetNearbyExitTransform();
+
+            if (nearbyExitTransform)
+            {
+                if (base.IsOwner)
+                {
+                    navMeshAgent.enabled = false;
+                    base.transform.position = nearbyExitTransform.position;
+                    navMeshAgent.enabled = true;
+                }
+                else
+                {
+                    base.transform.position = nearbyExitTransform.position;
+                }
+
+                playerControllerB.isInsideFactory = !playerControllerB.isInsideFactory;
+            }
+        }
+
+        private bool IsPlayerOutside(PlayerControllerB localPlayerController)
+        {
+            return localPlayerController != null && !localPlayerController.isInsideFactory;
         }
 
         private void ExploreAndGatherLoot()
@@ -166,13 +285,13 @@ namespace AiFriends.AIHelper
                 // Implement exploration logic based on AI level
                 switch (aiLevel)
                 {
-                    case AILevel.AiLevel.Easy:
+                    case AILevel.AiLevel.easy:
                         // Simple exploration logic for easy AI
                         break;
-                    case AILevel.AiLevel.Medium:
+                    case AILevel.AiLevel.medium:
                         // More advanced exploration logic for medium AI
                         break;
-                    case AILevel.AiLevel.Hard:
+                    case AILevel.AiLevel.hard:
                         // Complex exploration logic for hard AI
                         break;
                 }
@@ -184,14 +303,12 @@ namespace AiFriends.AIHelper
 
         private void ReturnToShip()
         {
-            // Implement logic to navigate back to the ship or main entrance to drop off the loot
-            // You can use the existing navmesh or waypoint system to find the path
+            Vector3 targetPosition = RoundManager.Instance.GetNavMeshPosition(GetPlayerSpawnPosition(0));
+            SetDestinationToPosition(targetPosition);
 
             if (Vector3.Distance(transform.position, RoundManager.FindMainEntrancePosition()) < 2f)
             {
-                TransferLootToPlayer();
-                isReturningToShip = false;
-                isExploring = true;
+                DropLootInShip();
             }
         }
 
@@ -205,18 +322,44 @@ namespace AiFriends.AIHelper
 
         private void PickupLoot(GrabbableObject loot)
         {
-            // Implement logic to add the loot to the AI companion's inventory
-
-            if (FirstEmptyItemSlot() == -1)
+            int emptySlot = FirstEmptyItemSlot();
+            if (emptySlot != -1)
+            {
+                playerControllerB.ItemSlots[emptySlot] = loot;
+                loot.gameObject.SetActive(false);
+                SayVoiceLine("Picked up " + loot.itemProperties.itemName);
+            }
+            else
             {
                 SayVoiceLine("Inventory full, returning to ship");
-                isReturningToShip = true;
             }
         }
 
-        public void TransferLootToPlayer()
+        private InteractTrigger FindNearestLadder()
         {
-            DiscardHeldObject();
+            InteractTrigger[] ladders = FindObjectsOfType<InteractTrigger>();
+            InteractTrigger nearestLadder = null;
+            float minDistance = float.MaxValue;
+
+            foreach (InteractTrigger ladder in ladders)
+            {
+                if (ladder.isLadder)
+                {
+                    float distance = Vector3.Distance(transform.position, ladder.transform.position);
+                    if (distance < minDistance)
+                    {
+                        minDistance = distance;
+                        nearestLadder = ladder;
+                    }
+                }
+            }
+
+            return nearestLadder;
+        }
+
+        public void DropLootInShip()
+        {
+            playerControllerB.DiscardHeldObject();
             SayVoiceLine("Loot transferred to ship");
         }
 
@@ -229,15 +372,15 @@ namespace AiFriends.AIHelper
         private int FirstEmptyItemSlot()
         {
             int result = -1;
-            if (ItemSlots[currentItemSlot] == null)
+            if (playerControllerB.ItemSlots[playerControllerB.currentItemSlot] == null)
             {
-                result = currentItemSlot;
+                result = playerControllerB.currentItemSlot;
             }
             else
             {
-                for (int i = 0; i < ItemSlots.Length; i++)
+                for (int i = 0; i < playerControllerB.ItemSlots.Length; i++)
                 {
-                    if (ItemSlots[i] == null)
+                    if (playerControllerB.ItemSlots[i] == null)
                     {
                         result = i;
                         break;
@@ -245,6 +388,23 @@ namespace AiFriends.AIHelper
                 }
             }
             return result;
+        }
+
+        private Transform GetNearbyExitTransform()
+        {
+            EntranceTeleport[] entrances = FindObjectsOfType<EntranceTeleport>(includeInactive: false);
+            foreach (EntranceTeleport entrance in entrances)
+            {
+                if (Vector3.Distance(base.transform.position, entrance.entrancePoint.position) < 1f)
+                {
+                    foreach (EntranceTeleport entrance2 in entrances)
+                    {
+                        if (entrance2.isEntranceToBuilding != entrance.isEntranceToBuilding && entrance2.entranceId == entrance.entranceId)
+                            return entrance2.entrancePoint;
+                    }
+                }
+            }
+            return null;
         }
 
         private Vector3 GetPlayerSpawnPosition(int playerNum, bool simpleTeleport = false)
@@ -278,11 +438,11 @@ namespace AiFriends.AIHelper
                     }
                 }
             }
-            System.Random random = new System.Random(65);
+            System.Random random = new(65);
             float y = StartOfRound.Instance.playerSpawnPositions[0].position.y;
             for (int j = 0; j < 15; j++)
             {
-                Vector3 vector = new Vector3(random.Next((int)StartOfRound.Instance.shipInnerRoomBounds.bounds.min.x, (int)StartOfRound.Instance.shipInnerRoomBounds.bounds.max.x), y, random.Next((int)StartOfRound.Instance.shipInnerRoomBounds.bounds.min.z, (int)StartOfRound.Instance.shipInnerRoomBounds.bounds.max.z));
+                Vector3 vector = new(random.Next((int)StartOfRound.Instance.shipInnerRoomBounds.bounds.min.x, (int)StartOfRound.Instance.shipInnerRoomBounds.bounds.max.x), y, random.Next((int)StartOfRound.Instance.shipInnerRoomBounds.bounds.min.z, (int)StartOfRound.Instance.shipInnerRoomBounds.bounds.max.z));
                 vector = StartOfRound.Instance.shipInnerRoomBounds.transform.InverseTransformPoint(vector);
                 Debug.DrawRay(vector, Vector3.up, Color.yellow, 15f);
                 if (!Physics.CheckSphere(vector, 0.12f, 67108864, QueryTriggerInteraction.Ignore))

@@ -2,6 +2,7 @@
 using AiFriends.AIHelper;
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Netcode;
 
 namespace AiFriends.Managers
 {
@@ -22,19 +23,19 @@ namespace AiFriends.Managers
                 DontDestroyOnLoad(this.gameObject);
             }
 
-            InitializeReviveNode();
+            InitializeHelperNode();
         }
 
-        private void InitializeReviveNode()
+        private void InitializeHelperNode()
         {
-            CustomTerminalNode reviveNode = CustomTerminalNode.CreateHelperNode();
-            terminalNodes.Add(reviveNode);
+            CustomTerminalNode helperNode = CustomTerminalNode.CreateHelperNode();
+            terminalNodes.Add(helperNode);
         }
 
         public void HandleHelperRequest(string level)
         {
             Debug.Log($"Handle Helper Request");
-            GetComponent<AICompanion>().RequestSpawnHelperServerRpc(level);
+            GetComponent<AICompanion>().RequestSpawnHelperServerRpc(level.ToLower());
         }
 
         public TerminalNode ConstructNode()

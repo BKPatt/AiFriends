@@ -30,7 +30,7 @@ namespace AiFriends
             instance = this;
             PatchAllMethods();
             NetcodePatch();
-            Logger.LogInfo("Revive functionality has been initialized.");
+            Logger.LogInfo("Helper functionality has been initialized.");
         }
 
         private void PatchAllMethods()
@@ -58,7 +58,7 @@ namespace AiFriends
         private string GetJsonContent()
         {
             var assembly = Assembly.GetExecutingAssembly();
-            var resourceName = "lethalCompanyRevive.Misc.InfoStrings.json";
+            var resourceName = "AiFriends.Misc.InfoStrings.json";
             using (StreamReader reader = new StreamReader(assembly.GetManifestResourceStream(resourceName)))
             {
                 return reader.ReadToEnd();

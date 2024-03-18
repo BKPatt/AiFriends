@@ -20,7 +20,7 @@ namespace AiFriends.Misc
 
         public void InitBindings()
         {
-            HELPER = ConfigEntry("Revive Players", "Revive all players in the ship.", true, "");
+            HELPER = ConfigEntry("Hire Helper", "Hire an AI Helper.", true, "");
         }
 
     }
