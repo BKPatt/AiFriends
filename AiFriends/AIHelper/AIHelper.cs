@@ -50,6 +50,7 @@ namespace AiFriends.AIHelper
             HandleJumping();
             HandleLadderClimbing();
             HandleGroundedState();
+            CheckDoorInteraction();
 
             switch (aiLevel)
             {
@@ -80,7 +81,6 @@ namespace AiFriends.AIHelper
 
         private void HardAILogic()
         {
-            // FollowPlayer();
             // AvoidObstacles();
             Explore();
             // EngageEnemies();
@@ -186,61 +186,12 @@ namespace AiFriends.AIHelper
 
         private void Explore()
         {
-            bool isPlayerOutside = !navMeshAgent.isOnNavMesh || !Helper.Player.IsPlayerOutside(GameNetworkManager.Instance.localPlayerController);
+            bool isPlayerOutside = base.transform.position.y > -80f;
             Vector3 targetPosition = transform.position;
 
-            if (isPlayerOutside)
+            if (isPlayerOutside && FirstEmptyItemSlot() != -1)
             {
-                targetPosition = RoundManager.Instance.GetNavMeshPosition(RoundManager.FindMainEntrancePosition(true, isPlayerOutside), default, 5f, -1);
-
-                if (!NavMesh.CalculatePath(transform.position, targetPosition, NavMesh.AllAreas, new NavMeshPath()))
-                {
-                    InteractTrigger ladder = FindNearestLadder();
-                    if (ladder != null)
-                    {
-                        targetPosition = ladder.transform.position;
-                        currentLadder = ladder;
-                    }
-                }
-            }
-            else
-            {
-                targetPosition = RoundManager.Instance.GetNavMeshPosition(Helper.PlayerSpawn.GetPlayerSpawnPosition(0), default, 5f, -1);
-
-                if (!NavMesh.CalculatePath(transform.position, targetPosition, NavMesh.AllAreas, new NavMeshPath()))
-                {
-                    InteractTrigger ladder = FindNearestLadder();
-                    if (ladder != null)
-                    {
-                        targetPosition = ladder.transform.position;
-                        currentLadder = ladder;
-                    }
-                }
-            }
-
-            if (navMeshAgent.isOnNavMesh)
-            {
-                navMeshAgent.SetDestination(targetPosition);
-            }
-            else
-            {
-                animator.SetFloat("MoveSpeed", 1f);
-                transform.position = Vector3.MoveTowards(transform.position, targetPosition, 2f * Time.deltaTime);
-            }
-
-            if (isClimbingLadder)
-            {
-                ClimbLadder();
-                animator.SetBool("IsClimbing", true);
-            }
-            else
-            {
-                animator.SetBool("IsClimbing", false);
-            }
-
-            /* if (isPlayerOutside && FirstEmptyItemSlot() != -1)
-            {
-                targetPosition = RoundManager.Instance.GetNavMeshPosition(RoundManager.FindMainEntrancePosition(true, isPlayerOutside), default, 5f, -1);
+                targetPosition = RoundManager.FindMainEntrancePosition(getTeleportPosition: true, isPlayerOutside);
 
                 if (!NavMesh.CalculatePath(transform.position, targetPosition, NavMesh.AllAreas, new NavMeshPath()))
                 {
@@ -254,7 +205,7 @@ namespace AiFriends.AIHelper
             }
             else if (!isPlayerOutside && FirstEmptyItemSlot() == -1)
             {
-                targetPosition = RoundManager.Instance.GetNavMeshPosition(RoundManager.FindMainEntrancePosition(true, isPlayerOutside), default, 5f, -1);
+                targetPosition = RoundManager.FindMainEntrancePosition(getTeleportPosition: true, isPlayerOutside);
 
                 if (!NavMesh.CalculatePath(transform.position, targetPosition, NavMesh.AllAreas, new NavMeshPath()))
                 {
@@ -297,7 +248,7 @@ namespace AiFriends.AIHelper
             else
             {
                 animator.SetBool("IsClimbing", false);
-            } */
+            }
         }
 
         private void DropLootInShip()
