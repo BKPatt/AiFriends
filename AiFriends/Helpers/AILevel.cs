@@ -4,7 +4,7 @@ using System.Text;
 
 namespace AiFriends.Helpers
 {
-    public class AILevel
+    public static partial class Helper
     {
         public enum AiLevel
         {

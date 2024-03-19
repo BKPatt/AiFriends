@@ -1,20 +1,43 @@
 ﻿using HarmonyLib;
-using AiFriends.AIHelper;
-using UnityEngine;
 using System.Collections.Generic;
 using GameNetcodeStuff;
 using AiFriends.Helpers;
+using UnityEngine.AI;
+using UnityEngine;
 
 namespace AiFriends.Patches
 {
-    [HarmonyPatch(typeof(PlayerControllerB))]
+    [HarmonyPatch(typeof(PlayerControllerB), "Awake")]
     class PlayerControllerBPatch
     {
-        public static Dictionary<PlayerControllerB, AIHelper> aiHelperData = new Dictionary<PlayerControllerB, AIHelper>();
+        public static Dictionary<PlayerControllerB, AIHelper.AIHelper> aiHelperData = new Dictionary<PlayerControllerB, AIHelper.AIHelper>();
 
-        public static void SetAIHelperData(PlayerControllerB player, AILevel.AiLevel aiLevel)
+        static void Postfix(PlayerControllerB __instance)
         {
-            aiHelperData[player] = new AIHelper
+            if (aiHelperData.ContainsKey(__instance) && aiHelperData[__instance].isAIPlayer)
+            {
+                __instance.gameObject.AddComponent<AIHelper.AIHelper>();
+                __instance.gameObject.AddComponent<NavMeshAgent>();
+                AIHelper.AIHelper aiHelper = __instance.gameObject.GetComponent<AIHelper.AIHelper>();
+                aiHelper.aiLevel = aiHelperData[__instance].aiLevel;
+                aiHelperData.Remove(__instance);
+
+                // Set additional properties for the AI-controlled player
+                __instance.isPlayerControlled = false;
+                __instance.isTestingPlayer = false;
+                __instance.isHostPlayerObject = false;
+                __instance.gameplayCamera.enabled = false;
+                __instance.visorCamera.enabled = false;
+                __instance.thisPlayerModelArms.enabled = false;
+                __instance.playerScreen.enabled = false;
+                __instance.activeAudioListener.enabled = false;
+                __instance.gameObject.GetComponent<CharacterController>().enabled = false;
+            }
+        }
+
+        public static void SetAIHelperData(PlayerControllerB player, Helper.AiLevel aiLevel)
+        {
+            aiHelperData[player] = new AIHelper.AIHelper
             {
                 aiLevel = aiLevel,
                 isAIPlayer = true
@@ -25,28 +48,5 @@ namespace AiFriends.Patches
         {
             return aiHelperData.ContainsKey(player) && aiHelperData[player].isAIPlayer;
         }
-
-        /* [HarmonyPostfix]
-        [HarmonyPatch("Awake")]
-        static void AwakePostfix(PlayerControllerB __instance)
-        {
-            if (IsAIPlayer(__instance))
-            {
-                __instance.playerUsername = "AI Helper";
-                __instance.gameplayCamera.enabled = false;
-                __instance.thisPlayerModelArms.enabled = false;
-                __instance.visorCamera.enabled = false;
-                __instance.playerScreen.enabled = false;
-                __instance.activeAudioListener.enabled = false;
-                __instance.gameObject.GetComponent<CharacterController>().enabled = false;
-
-            }
-        } */
-    }
-
-    public class AIHelper
-    {
-        public AILevel.AiLevel aiLevel;
-        public bool isAIPlayer;
     }
 }
