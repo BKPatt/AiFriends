@@ -1,6 +1,7 @@
 ﻿using AiFriends.Helpers;
 using GameNetcodeStuff;
 using System;
+using System.Collections;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.AI;
@@ -99,6 +100,8 @@ namespace AiFriends.AIHelper
             // EngageEnemies();
         }
 
+        
+
         private void HandleJumping()
         {
             if (isJumping)
@@ -133,15 +136,17 @@ namespace AiFriends.AIHelper
             if (ladder != null && Vector3.Distance(transform.position, ladder.transform.position) < 2f)
             {
                 isClimbingLadder = true;
-                isClimbingUp = transform.position.y > -80f;
+                isClimbingUp = transform.position.y < ladder.topOfLadderPosition.position.y;
                 currentLadder = ladder;
-                currentLadder.Interact(null);
-                animator.Play("LadderClimbing");
+                currentLadder.Interact(transform);
+                animator.SetTrigger("EnterLadder");
+                animator.SetBool("ClimbingLadder", value: true);
             }
             else
             {
                 isClimbingLadder = false;
                 currentLadder = null;
+                animator.SetBool("ClimbingLadder", value: false);
             }
 
             if (isClimbingLadder)
@@ -155,26 +160,14 @@ namespace AiFriends.AIHelper
             if (currentLadder == null)
                 return;
 
-            Vector3 ladderTop = currentLadder.transform.position + Vector3.up * 5f;
-            Vector3 ladderBottom = currentLadder.transform.position - Vector3.up * 5f;
+            Vector3 targetPosition = isClimbingUp ? currentLadder.topOfLadderPosition.position : currentLadder.bottomOfLadderPosition.position;
 
-            if (isClimbingUp)
+            transform.position = Vector3.MoveTowards(transform.position, targetPosition, 2f * Time.deltaTime);
+
+            if (Vector3.Distance(transform.position, targetPosition) < 0.1f)
             {
-                transform.position = Vector3.MoveTowards(transform.position, ladderTop, 2f * Time.deltaTime);
-                if (Vector3.Distance(transform.position, ladderTop) < 0.1f)
-                {
-                    isClimbingLadder = false;
-                    currentLadder = null;
-                }
-            }
-            else
-            {
-                transform.position = Vector3.MoveTowards(transform.position, ladderBottom, 2f * Time.deltaTime);
-                if (Vector3.Distance(transform.position, ladderBottom) < 0.1f)
-                {
-                    isClimbingLadder = false;
-                    currentLadder = null;
-                }
+                isClimbingLadder = false;
+                currentLadder = null;
             }
         }
 
