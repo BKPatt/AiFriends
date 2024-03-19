@@ -23,6 +23,8 @@ namespace AiFriends.AIHelper
         private float jumpCooldown;
         private bool isJumping;
         private bool isGrounded;
+        private bool isCrouching;
+        private bool isSideways;
 
         private NavMeshAgent navMeshAgent;
         private InteractTrigger currentLadder;
@@ -65,7 +67,18 @@ namespace AiFriends.AIHelper
                     break;
             }
 
-            animator.SetFloat("MoveSpeed", navMeshAgent.velocity.magnitude);
+            bool isWalking = navMeshAgent.velocity.magnitude > 0.1f && navMeshAgent.velocity.magnitude <= 3f;
+            animator.SetBool("Walking", isWalking);
+
+            bool isSprinting = navMeshAgent.velocity.magnitude > 3f;
+            animator.SetBool("Sprinting", isSprinting);
+
+            animator.SetBool("Jumping", isJumping);
+            animator.SetBool("Crouching", isCrouching);
+            animator.SetBool("Sideways", isSideways);
+
+            float animationSpeed = navMeshAgent.velocity.magnitude / navMeshAgent.speed;
+            animator.SetFloat("AnimationSpeed", animationSpeed);
         }
 
         private void EasyAILogic()
@@ -90,6 +103,8 @@ namespace AiFriends.AIHelper
         {
             if (isJumping)
             {
+                animator.SetBool("Jumping", true);
+
                 if (jumpCooldown > 0)
                 {
                     jumpCooldown -= Time.deltaTime;
@@ -99,11 +114,16 @@ namespace AiFriends.AIHelper
                     isJumping = false;
                 }
             }
-            else if (isGrounded && navMeshAgent.remainingDistance < navMeshAgent.baseOffset)
+            else
             {
-                jumpCooldown = 1f; // Adjust the cooldown as needed
-                isJumping = true;
-                characterController.Move(Vector3.up * 5f); // Adjust the jump force as needed
+                animator.SetBool("Jumping", false);
+
+                if (isGrounded && navMeshAgent.remainingDistance < navMeshAgent.baseOffset)
+                {
+                    jumpCooldown = 1f;
+                    isJumping = true;
+                    characterController.Move(Vector3.up * 5f);
+                }
             }
         }
 
@@ -113,14 +133,20 @@ namespace AiFriends.AIHelper
             if (ladder != null && Vector3.Distance(transform.position, ladder.transform.position) < 2f)
             {
                 isClimbingLadder = true;
-                isClimbingUp = Helper.Player.IsPlayerOutside(GameNetworkManager.Instance.localPlayerController);
+                isClimbingUp = transform.position.y > -80f;
                 currentLadder = ladder;
                 currentLadder.Interact(null);
+                animator.Play("LadderClimbing");
             }
             else
             {
                 isClimbingLadder = false;
                 currentLadder = null;
+            }
+
+            if (isClimbingLadder)
+            {
+                ClimbLadder();
             }
         }
 
@@ -188,6 +214,9 @@ namespace AiFriends.AIHelper
         {
             bool isPlayerOutside = base.transform.position.y > -80f;
             Vector3 targetPosition = transform.position;
+
+            navMeshAgent.speed = 3f;
+            navMeshAgent.acceleration = 10f;
 
             if (isPlayerOutside && FirstEmptyItemSlot() != -1)
             {
