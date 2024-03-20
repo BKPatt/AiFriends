@@ -14,7 +14,7 @@ namespace AiFriends.AIHelper
         public bool isAIPlayer = true;
         public float followDistance = 5f;
         public float lootGatherRadius = 10f;
-        public int inventoryCapacity = 10;
+        public int inventoryCapacity = 4;
         private bool isClimbingLadder = false;
         private bool isClimbingUp = true;
 
@@ -300,8 +300,8 @@ namespace AiFriends.AIHelper
                     {
                         Debug.Log("Player is inside and trying to gather loot");
 
+                        // exploreRan = true;
                         ExploreAndGatherLoot();
-                        return;
                     }
                     else
                     {
@@ -311,10 +311,8 @@ namespace AiFriends.AIHelper
                     }
                 }
             }
-                
-                
-                
-
+            
+            
 
             if (navMeshAgent.isOnNavMesh && isPlayerOutside)
             {
@@ -447,13 +445,12 @@ namespace AiFriends.AIHelper
 
         private void ExploreAndGatherLoot()
         {
-            Debug.Log($"ExploreAndGatherLoot()");
-
             nearbyLoot = FindNearbyLoot();
-            Debug.Log($"Nearby Loot: {nearbyLoot}");
 
             if (nearbyLoot.Length > 0)
             {
+                Debug.Log($"Nearby Loot: {nearbyLoot}");
+
                 GrabbableObject loot = nearbyLoot[0];
                 Debug.Log($"Loot Position: {loot}");
                 SetDestinationToPosition(loot.transform.position);
@@ -494,23 +491,20 @@ namespace AiFriends.AIHelper
         public Vector3 GetRandomPositionInsideFacility()
         {
             Debug.Log($"GetRandomPositionInsideFacility()");
-            Bounds bounds = new Bounds();
+            Bounds bounds = new();
             foreach (GameObject node in RoundManager.Instance.insideAINodes)
             {
                 bounds.Encapsulate(node.transform.position);
             }
 
             bounds.Expand(1f);
-
-            NavMeshHit hit;
-            Vector3 randomPosition = Vector3.zero;
             int attempts = 0;
             while (attempts < 10)
             {
-                randomPosition = RandomPointInBounds(bounds);
+                Vector3 randomPosition = RandomPointInBounds(bounds);
                 Debug.Log($"Random Position: {randomPosition}");
 
-                if (NavMesh.SamplePosition(randomPosition, out hit, 2f, NavMesh.AllAreas))
+                if (NavMesh.SamplePosition(randomPosition, out NavMeshHit hit, 20f, NavMesh.AllAreas))
                 {
                     return hit.position;
                 }
@@ -588,6 +582,7 @@ namespace AiFriends.AIHelper
                         if (entrance2.isEntranceToBuilding != entrance.isEntranceToBuilding && entrance2.entranceId == entrance.entranceId)
                         {
                             allowDoorInteraction = false;
+                            exploreRan = false;
                             return entrance2.entrancePoint;
                         }
                     }

@@ -12,9 +12,6 @@ namespace AiFriends.AIHelper
     {
         public static AICompanion Instance { get; private set; }
 
-        public float followDistance = 5f;
-        public float lootGatherRadius = 10f;
-        public int inventoryCapacity = 10;
         public Helper.AiLevel aiLevel = Helper.AiLevel.medium;
         private const int HelperCost = 100;
 
